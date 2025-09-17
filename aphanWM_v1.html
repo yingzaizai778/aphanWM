@@ -1,0 +1,1676 @@
+<!doctype html>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+    <title>WM and aphantasia</title>
+  </head>
+<body>
+        <canvas id="canvas" width="1920" height="1080">
+         If you can see this, your browser does not support Canvas
+        </canvas>
+<script>
+document.body.style.backgroundColor = "black"; // set background of whole page
+document.getElementById('canvas').style.cursor = "none";
+
+// Screen/Timing settings
+const ExptName = "aphanWM";
+const randID = makeid(8);
+const queryString = window.location.search;
+const urlParams = new URLSearchParams(queryString);
+const subjID = urlParams.get('PROLIFIC_PID')
+const exptStart = Date.now();
+const durPerFrame = 1000/60; 
+const scrWidth = window.screen.width; // method to get screen px
+const scrHeight = window.screen.height; 
+const pageWidth  = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth; // get the page size, which typically is smaller than the screen
+const pageHeight = window.innerHeight|| document.documentElement.clientHeight|| document.body.clientHeight;
+const pageXcen = pageWidth / 2; // seems better to define the center from the page than from the screen
+const pageYcen = pageHeight / 2;
+const src_consForm = "https://yingzaizai778.github.io/aphanWM/Consent.png";
+const src_instructionImg = "https://yingzaizai778.github.io/aphanWM/Instruction.png";
+
+var durInter = 500;
+var durProbe = 200;
+var durFeedback = 500;
+var durResp = 1500;
+var durRespOutTime = 500;
+var durITI = 100000;
+
+// This is just to initialise stuff
+var canvas;  
+var ctx;
+
+// mouse parameters
+var mousePosX = 0;
+var mousePosY = 0;
+var mouseDist = 100;
+var mouseButton = -1;
+
+var currTime = Date.now();
+var trialStart = Date.now();
+var consentObtained = 0;
+var demoObtained = 0;
+var pracFinished = 0;
+var blockNum = 0;
+var trialNum = 0;
+var age = 18;
+var ageXPos = 200;
+var hand = 'right';
+var handState = [1,0,0];
+var gender = 'female';
+var genderState = [0,1,0];
+var currCol = "white";
+var frame = 0;
+var str1 = "";
+var str2 = "";
+
+var trialClock = 0;
+var stimEndTime = 0;
+var instrEndTime = 0;
+var respEndTime = 0;
+var blockEndTime = 0;
+
+var startResp = 0;
+var encodingResp = 0;
+var updatingResp = 0;
+var Resp = 0;
+var OutOfTime = 0;
+var acc = -1;
+var changeAnswer = -1;
+var numACC_practice = 0;
+var numACC = 0;
+var nextStateSame = 0;
+var nextStateDiff = 0;
+var startBlock = 0;
+var startPrac = 0;
+var readyToNextBlock = 0;
+var readyToNextTrial = 1;
+var endExp = 0;
+
+var expStart = 0;
+var addString = "";
+var desText = "";
+var dataString = "subjID,gender,age,hand,trialID,feature,ET(encoding_time),UT(updating_time),changeORnot,swapORmove,response,acc,RT(response_time,outOFtime)";
+var consForm = document.createElement("img");
+consForm.src = src_consForm;
+var instructionImg = document.createElement("img");
+instructionImg.src = src_instructionImg;
+
+
+// Expt parameters
+var numTrials = 8; //total number of trials
+var numUpdates = 1; //number of updates per trial
+var numTrials_prac = 2;
+var number_of_blocks = 4;
+var estimateTime = 50; //min
+
+// Fixation size
+var fixSize = 30;
+
+// color parameters
+const fullcolormatrixRGB = genMemColRGB();
+const fullcolormatrixHex = genMemColHex(fullcolormatrixRGB);
+
+// grid parameters
+var gridSize = 4; // 4*4 grid will be presented
+var gridCoords = [];
+var count = 1;
+for (row = 0; row < gridSize; row++) {
+    gridCoords[row] = [];
+    for (col = 0; col < gridSize; col++) {
+        gridCoords[row][col] = count;
+        count++;
+    }
+}
+var gridCellSize = 30; 
+var gridBarWidth = 3;
+var gridLoc = [];
+for (ii = 0; ii < gridSize; ii++) {
+  gridLoc[ii] = [];
+  gridLoc[ii][0] = pageXcen + (ii - (gridSize / 2)) * (gridCellSize + gridBarWidth)+gridCellSize/2;
+  gridLoc[ii][1] = pageYcen + (ii - (gridSize / 2)) * (gridCellSize + gridBarWidth)+gridCellSize/2;
+}
+
+// letter parameters
+var setSize = 4; // 4 letters will be presented
+var textSize = 30; 
+var letters = [
+  'A', 'B', 'C', 'D', 'E', 'F', 'G',
+  'H', 'I', 'J', 'K', 'L', 'M', 'N',
+  'O', 'P', 'Q', 'R', 'S', 'T', 'U',
+  'V', 'W', 'X', 'Y', 'Z'
+];
+
+// set up trial conditions
+var displayInfo_prac = [];
+var displayInfoInitial_prac = GridUpdate_TrialCreation(setSize,gridSize,gridCoords,numUpdates,numTrials_prac);
+var trialOrder = randperm(numTrials_prac);
+
+var istart_prac = [];
+for (i=0; i<numTrials_prac; i++){
+displayInfo_prac[i] = displayInfoInitial_prac[trialOrder[i]-1];
+istart_prac[i] = Math.floor(Math.random() * 360) + 1;
+}
+
+var displayInfo_exp = [];
+var displayInfoInitial_exp = GridUpdate_TrialCreation(setSize,gridSize,gridCoords,numUpdates,numTrials);
+var trialOrder_exp = randperm(numTrials);
+
+var istart_exp = [];
+for (i=0; i<numTrials; i++){
+displayInfo_exp[i] = displayInfoInitial_exp[trialOrder_exp[i]-1];
+istart_exp[i] = Math.floor(Math.random() * 360) + 1;
+}
+
+
+
+// Main prog that runs the 'animation'/frame loop
+init();
+
+function main() {
+  onmousemove = function(e){mousePosX = e.clientX; mousePosY = e.clientY; return (mousePosX, mousePosY);} // this is a function built in for mouse-handling
+  onmousedown = function(e){mouseButton = e.button; return (mouseButton);} // this is a function built in for mouse-handling
+  mouseDist = calcDist();
+  if ((consentObtained == 0) && (blockNum == 0)) {runConsent();}
+  if ((consentObtained == 1) && (demoObtained == 0) && (blockNum == 0)) {runDemographics();}
+  if ((consentObtained == 1) && (demoObtained == 1) && (blockNum == 0)) {instruction();}
+  if ((blockNum == 1) && (pracFinished==0)) {runPrac(istart_prac, displayInfo_prac);}
+  if ((blockNum <= number_of_blocks) && (blockNum > 0) && (pracFinished==1)) {runBlock(istart_exp, displayInfo_exp);}
+  if (blockNum > number_of_blocks && endExp == 1) {expEnd();}
+}
+
+// sign consent form
+function runConsent(){
+  reset();
+  ctx.drawImage(consForm,0,0,pageHeight*0.9*5.82/7.5,pageHeight*0.9);
+
+  ctx.font = "20px Arial";
+  ctx.fillStyle = "white";
+  if ((mousePosX < 100+50) && (mousePosX > 100) && (mousePosY > pageHeight*0.91-30) && (mousePosY < pageHeight*0.91+30)){nextState = 1;} else {nextState = 0;}
+  drawButton('Next',nextState,100,pageHeight*0.91,50,30,2,6);
+  drawMouse();
+  if (nextState && mouseButton == 0){ consentObtained = 1; mouseButton = -1; frame = 0}  
+}
+
+
+// get demographic information
+function runDemographics() {
+  reset();
+  ctx.font = "20px Arial";
+  ctx.fillStyle = "white";
+  
+  ctx.fillText("Welcome to the Working Memory experiment! Please maximize the window and then refresh this page before continuing.", 40, 60);
+  ctx.fillText("By proceeding, you consent to providing your performance data to the Fougnie lab at NYU Abu Dhabi.", 40, 100);
+  ctx.fillText("First, we need information about your gender, age and handedness. Please click the correct buttons.", 40, 180); 
+  ctx.fillText("Click the button below to begin", 40, 400); 
+
+  ctx.fillText("Gender: " + gender, 40, 222);
+  ctx.fillText("Age: " + age, 40, 260); 
+  ctx.fillText("Hand: " + hand, 40, 300);   
+
+  if ((mousePosX < 200+50) && (mousePosX > 200) && (mousePosY > 200) && (mousePosY < 200+30) && mouseButton == 0){genderState = [1,0,0]; gender = 'male'; mouseButton = -1;}
+  if ((mousePosX < 260+50) && (mousePosX > 260) && (mousePosY > 200) && (mousePosY < 200+30) && mouseButton == 0){genderState = [0,1,0]; gender = 'female'; mouseButton = -1;}
+  if ((mousePosX < 320+50) && (mousePosX > 320) && (mousePosY > 200) && (mousePosY < 200+30) && mouseButton == 0){genderState = [0,0,1]; gender = 'other'; mouseButton = -1;}  
+  drawButton('Male',genderState[0],200,200,50,30,2,6);
+  drawButton('Female',genderState[1],260,200,50,30,1,6);
+  drawButton('Other',genderState[2],320,200,50,30,2,6);
+  
+  age = drawAge(age,200,250);
+  
+  if ((mousePosX < 200+50) && (mousePosX > 200) && (mousePosY > 280) && (mousePosY < 280+30) && mouseButton == 0){handState = [1,0,0]; hand = 'right'; mouseButton = -1;}
+  if ((mousePosX < 260+50) && (mousePosX > 260) && (mousePosY > 280) && (mousePosY < 280+30) && mouseButton == 0){handState = [0,1,0]; hand = 'left'; mouseButton = -1;}
+  if ((mousePosX < 320+50) && (mousePosX > 320) && (mousePosY > 280) && (mousePosY < 280+30) && mouseButton == 0){handState = [0,0,1]; hand = 'ambi'; mouseButton = -1;}  
+  drawButton('Right',handState[0],200,280,50,30,2,6);
+  drawButton('Left',handState[1],260,280,50,30,2,6);
+  drawButton('Ambi',handState[2],320,280,50,30,2,6);  
+  
+
+  if ((mousePosX < 100+50) && (mousePosX > 100-50) && (mousePosY > 420-30) && (mousePosY < 420+30)){nextState = 1;} else {nextState = 0;}
+  drawButton('Next',nextState,100,420,50,30,2,6);
+  drawMouse();
+  if (nextState && mouseButton == 0){ demoObtained = 1; mouseButton = -1; frame = 0; expStart = Date.now()}  
+}
+
+
+// show instruction
+function instruction() {
+  reset();
+  ctx.drawImage(instructionImg,0,0,pageHeight*0.8*7.82/7.5,pageHeight*0.8);
+  if ((mousePosX < 100+50) && (mousePosX > 100-50) && (mousePosY > pageHeight*0.84-30) && (mousePosY < pageHeight*0.84+30)){nextState = 1;} else {nextState = 0;}
+  drawButton('Next',nextState,100,pageHeight*0.84,50,30,2,6);
+  drawMouse();
+  if (nextState && mouseButton == 0){mouseButton = -1;resp = 0; blockNum = blockNum + 1;}  
+}
+
+
+// run practice trials
+function runPrac(istart_prac, displayInfo_prac) {
+  if (pracFinished==0 && startPrac == 0 && trialNum == 0) {pracStart();}  
+  if (pracFinished==0 && startPrac == 1 && trialNum <= numTrials_prac){runTrial(istart_prac, displayInfo_prac);} 
+  if (trialNum > numTrials_prac && startPrac == 0){pracEnd();}
+}
+
+
+// run block trials
+function runBlock(istart, displayInfo) {
+  if (blockNum == 1 && pracFinished==1 && startBlock == 0 && readyToNextBlock == 0) {
+    if (trialNum == 0) {blockStart();} 
+  } else if (blockNum > 1 && pracFinished==1 && startBlock == 0) {
+    if (trialNum == (blockNum-1)*(numTrials/number_of_blocks)+1) {blockStart();}
+  }
+  if (startBlock == 1 && readyToNextBlock == 1) {runTrial(istart, displayInfo);} 
+  if (trialNum == blockNum*(numTrials/number_of_blocks)+1 && startBlock == 0 && readyToNextBlock == 1){blockEnd();}
+}
+
+
+// beginning of block
+function blockStart() {
+  reset();
+
+  ctx.font = "20px Arial";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "white";
+  
+  ctx.fillText("Click on the button bellow to begin " + blockNum + " of " + number_of_blocks + " blocks", pageXcen, 300);
+  ctx.fillText("Please try to respond IN TIME and ACCURATELY.", pageXcen, 320);
+
+
+  if ((mousePosX < pageXcen-25+50) && (mousePosX > pageXcen-25) && (mousePosY > 420-30) && (mousePosY < 420+30)){nextState = 1;} else {nextState = 0;}
+  drawButton('Next',nextState,pageXcen-25,420,50,30,4,6);
+  drawMouse();
+  if (nextState && mouseButton == 0){
+    if (blockNum == 1) {trialNum = trialNum + 1;}
+    startBlock = 1;
+    mouseButton = -1;
+    readyToNextBlock = 1;
+
+  }
+}  
+
+// end of block
+function blockEnd() {
+  reset();
+  ctx.font = "20px Arial";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "white";
+
+  if (blockNum < number_of_blocks) {
+    ctx.fillText("You have finished this block. ", pageXcen, 300);
+    ctx.fillText("Take a break.", pageXcen, 320);
+    ctx.fillText("Please click on the button bellow to begin next block", pageXcen, 340);
+  }
+  if (blockNum == number_of_blocks && trialNum > numTrials) {
+      ctx.fillText("You have finished the experiment. ", pageXcen, 300);
+      ctx.fillText("Your get " + numACC + " of " + numTrials + " correct trials", pageXcen, 320);
+      ctx.fillText("Please click on the button bellow to upload your data.", pageXcen, 340);
+  }
+
+
+  if ((mousePosX < pageXcen-25+50) && (mousePosX > pageXcen-25) && (mousePosY > 420-30) && (mousePosY < 420+30)){nextState = 1;} else {nextState = 0;}
+  drawButton('Next',nextState,pageXcen-25,420,50,30,4,6);
+  drawMouse();
+  if (nextState && mouseButton == 0){
+    blockNum = blockNum+1; 
+    mouseButton = -1; frame = 0;
+    if (blockNum > number_of_blocks) {
+      endExp = 1; readyToNextBlock = 1;
+    } else {
+      readyToNextBlock = 0;
+    }
+    }
+}  
+
+// end of experiment
+function expEnd() {
+   if (frame == 0) {
+      writeStuffLocal();
+
+      document.body.style.background = "white";
+      if (canvas.parentNode != null){
+        canvas.parentNode.removeChild(canvas);
+      }
+      const paragraph1 = document.createElement('p');
+      const paragraph2 = document.createElement('p');
+      const paragraph3 = document.createElement('p');
+
+      paragraph1.innerHTML = '<br>IMPORTANT! Please upload your data (the csv file just downloaded in your computer) on the link below: ';
+
+      paragraph2.innerHTML = '<br>If the link does not work, please send your data to yz5725@nyu.edu (do not forget to attach the csv file)';
+
+      paragraph3.innerHTML = '<br>After submit your data, if you signed up via Prolific, please click on the link below to finish the experiment:';
+
+
+
+      // Create the anchor element
+      const link1 = document.createElement('a');
+      link1.href = 'https://pigeonfiles.com/u/g7ehzlu8bs-mc3lbatnryk';
+      link1.textContent = 'Upload your data here';
+      link1.target = '_blank'; // Optional: open in new tab
+      link1.style.color = 'blue'; // Optional: style like a typical link
+      link1.style.textDecoration = 'underline';
+      link1.style.cursor = 'pointer';
+
+      // Create the anchor element
+      const link3 = document.createElement('a');
+      link3.href = 'https://app.prolific.co/submissions/complete?cc=7B63932C';
+      link3.textContent = 'Click Here';
+      link3.target = '_blank'; // Optional: open in new tab
+      link3.style.color = 'blue'; // Optional: style like a typical link
+      link3.style.textDecoration = 'underline';
+      link3.style.cursor = 'pointer';
+
+      // Add to the document body or a specific container
+      document.body.appendChild(paragraph1);
+      document.body.appendChild(link1);
+      document.body.appendChild(paragraph2);
+      const emailLink = createEmailLink('send data to yz5725@nyu.edu', `prolific_PID: ${subjID}`, 'Hello, this is my data');
+      document.body.appendChild(emailLink);
+      document.body.appendChild(paragraph3);
+      document.body.appendChild(link3);
+
+      // writeStuff();
+      frame = 1;
+
+  }
+
+}
+
+function createEmailLink(email, subject = '', body = '') {
+    const link = document.createElement('a');
+    
+    // Build mailto URL with optional subject and body
+    let mailtoUrl = `mailto:${email}`;
+    const params = [];
+    
+    if (subject) params.push(`subject=${encodeURIComponent(subject)}`);
+    if (body) params.push(`body=${encodeURIComponent(body)}`);
+    
+    if (params.length > 0) {
+        mailtoUrl += `?${params.join('&')}`;
+    }
+    
+    link.href = mailtoUrl;
+    link.textContent = email;
+    link.style.color = 'blue';
+    link.style.textDecoration = 'underline';
+    
+    return link;
+}
+
+// Usage
+const emailLink = createEmailLink('example@email.com', 'Hello', 'This is the email body');
+
+
+// beginning of practice
+function pracStart() {
+  reset();
+
+  ctx.font = "20px Arial";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "white";
+  
+  ctx.fillText("Click on the button bellow to begin " + numTrials_prac + " practice trials", pageXcen, 300);
+  ctx.fillText("Please make sure you have enough correct responded intime trials to pass the practice.", pageXcen, 320);
+
+  if ((mousePosX < pageXcen-25+50) && (mousePosX > pageXcen-25) && (mousePosY > 420-30) && (mousePosY < 420+30)){nextState = 1;} else {nextState = 0;}
+  drawButton('Next',nextState,pageXcen-25,420,50,30,4,6);
+  drawMouse();
+  if (nextState && mouseButton == 0){
+    mouseButton = -1;
+    startPrac = 1;
+    trialNum = trialNum + 1;
+    }
+}  
+
+// beginning of practice
+function pracEnd() {
+  reset();
+  ctx.font = "20px Arial";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "white";
+  if (numACC_practice/numTrials_prac > 0.5) {
+      ctx.fillText("You have finished the practice. ", pageXcen, 300);
+      ctx.fillText("Your get " + numACC_practice + " of " + numTrials_prac + " correct trials", pageXcen, 320);
+      ctx.fillText("Please click on the button bellow to begin experiment.", pageXcen, 340);
+   } else {
+      ctx.fillText("Your get " + numACC_practice + " of " + numTrials_prac + " correct trials", pageXcen, 320);
+      ctx.fillText("Please click on the button bellow to re-do the practice.", pageXcen, 340);
+   }
+
+
+  if ((mousePosX < pageXcen-25+50) && (mousePosX > pageXcen-25) && (mousePosY > 420-30) && (mousePosY < 420+30)){nextState = 1;} else {nextState = 0;}
+  drawButton('Next',nextState,pageXcen-25,420,50,30,4,6);
+  drawMouse();
+  if (nextState && mouseButton == 0){
+    mouseButton = -1;
+    if (numACC_practice/numTrials_prac > 0.5) {
+       startPrac = 0; trialNum = 0; pracFinished = 1; 
+    } else {startPrac = 0; numACC_practice = 0; trialNum = 0; pracFinished = 0;}
+  }
+}  
+
+// run trial
+function runTrial(istart, displayInfo) {
+  if (startResp == 0 && readyToNextTrial == 1){phaseWaiting(); }// ready to start trial
+  trialClock = Date.now() - trialStart;
+  if (startResp == 1 && encodingResp == 0){phaseStimulus(istart, displayInfo);} // stimulus
+  if (startResp == 1 && encodingResp == 1 && trialClock <= encodingTime+durInter){reset();} // ISI  
+  if (startResp == 1 && encodingResp == 1 && trialClock > encodingTime+durInter && updatingResp == 0){phaseUpdateInstruction(istart, displayInfo);} // updating instruction  
+  if (startResp == 1 && encodingResp == 1 && updatingResp == 1 && trialClock <= encodingTime+durInter+updatingTime+durProbe){phaseProbe(istart, displayInfo);} // probe
+  if (startResp == 1 && encodingResp == 1 && updatingResp == 1 && trialClock > encodingTime+durInter+updatingTime+durProbe && trialClock <= encodingTime+durInter+updatingTime+durProbe+durResp && Resp == 0){phaseResp(istart, displayInfo);} // response in time
+  if (startResp == 1 && encodingResp == 1 && updatingResp == 1 && trialClock > encodingTime+durInter+updatingTime+durProbe+durResp && trialClock <= encodingTime+durInter+updatingTime+durProbe+durRespOutTime+durResp && Resp == 0){phaseRespOutTime(istart, displayInfo);} // response out of time
+  if (startResp == 1 && encodingResp == 1 && updatingResp == 1 && Resp == 1  && OutOfTime == 0 && trialClock <= encodingTime+durInter+updatingTime+durProbe+responseTime+durFeedback){phaseFeedback();} // feedback
+  if (startResp == 1 && encodingResp == 1 && updatingResp == 1 && Resp == 1  && OutOfTime == 0 && readyToNextTrial == 0) {
+    if (trialClock > encodingTime+durInter+updatingTime+durProbe+responseTime+durFeedback) {
+      if (pracFinished == 1) {
+        if (trialNum % (numTrials/number_of_blocks) == 0) {startBlock = 0;}
+      }
+      if (pracFinished == 0) {
+        if (trialNum == numTrials_prac) {startPrac = 0; }
+      }
+
+      startResp = 0; encodingResp = 0; updatingResp = 0; Resp = 0; OutOfTime = 0; trialNum = trialNum + 1; 
+      readyToNextTrial = 1; 
+    }
+  } else if (startResp == 1 && encodingResp == 1 && updatingResp == 1 && OutOfTime == 1 && readyToNextTrial == 0) {
+    if (trialClock > encodingTime+durInter+updatingTime+durProbe+durRespOutTime+durResp) {
+      if (pracFinished == 1) {
+        if (trialNum % (numTrials/number_of_blocks) == 0) {startBlock = 0;}
+      }
+      if (pracFinished == 0) {
+        if (trialNum == numTrials_prac) {startPrac = 0; }
+      }
+
+      startResp = 0; encodingResp = 0; updatingResp = 0; Resp = 0; OutOfTime = 0; trialNum = trialNum + 1; 
+      readyToNextTrial = 1; 
+    }
+
+  }
+}
+
+
+// start of trial
+function phaseWaiting() {
+    reset();
+    ctx.font = "20px Arial";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "white";
+    ctx.fillText("Click on the white dot to begin this trial", pageXcen, 300);
+    circle(pageXcen,pageYcen,fixSize/2,"white");
+    drawMouse();
+    if (mouseDist <= fixSize/2 && mouseButton == 0){
+        frame = 0;
+        startResp = 1;
+        readyToNextTrial = 0;
+        trialStart = Date.now();
+
+    }
+    mouseButton = -1;
+}
+
+
+// stimulus
+function phaseStimulus(istart, displayInfo) { 
+  reset();
+  if (frame == 0) {
+    xx        = displayInfo[trialNum - 1][0][0].map(row => row[2]); 
+    yy        = displayInfo[trialNum - 1][0][0].map(row => row[3]); 
+    letterIdx = displayInfo[trialNum - 1][0][0].map(row => row[0]); 
+    colorIdx  = displayInfo[trialNum - 1][0][0].map(row => row[1]); 
+    iclorStart = istart[trialNum - 1];
+    frame = 1;
+  }
+
+  for (ii = 1; ii <= gridSize ** 2; ii++) {
+    // Row & column calculation
+    row = Math.ceil(ii / gridSize);
+    col = ((ii - 1) % gridSize) + 1;
+
+    // Center coordinates
+    cx = gridLoc[row - 1][0]; 
+    cy = gridLoc[col - 1][1];
+
+
+    // Outer rectangle (grid cell with border)
+    x1Outer = cx - gridCellSize / 2 - gridBarWidth;
+    y1Outer = cy - gridCellSize / 2 - gridBarWidth;
+    x2Outer = cx + gridCellSize / 2 + gridBarWidth;
+    y2Outer = cy + gridCellSize / 2 + gridBarWidth;
+
+    ctx.fillStyle = "white";
+    ctx.fillRect(x1Outer, y1Outer, x2Outer - x1Outer, y2Outer - y1Outer);
+
+    // Inner rectangle (background inside cell)
+    x1Inner = cx - gridCellSize / 2;
+    y1Inner = cy - gridCellSize / 2;
+    x2Inner = cx + gridCellSize / 2;
+    y2Inner = cy + gridCellSize / 2;
+
+    ctx.fillStyle = "black";
+    ctx.fillRect(x1Inner, y1Inner, x2Inner - x1Inner, y2Inner - y1Inner);
+
+  }
+
+  // Equivalent to istart:90:istart+270 (since 360/4 = 90)
+  icolorIdx = [];
+  for (k = 0; k < setSize; k++) {
+    icolorIdx.push((iclorStart + k * (360 / 4)) % 360 || 1);
+  }
+
+  // Pick rows from fullcolormatrix (assuming fullcolormatrix is an array of [r,g,b])
+  icolors = icolorIdx.map(idx => fullcolormatrixHex[idx]);
+
+  // Set font
+  ctx.font = "20px Impact";  // Adjust font size as needed
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  for (ii = 0; ii < setSize; ii++) {
+    cx = gridLoc[xx[ii] - 1][0];
+    cy = gridLoc[yy[ii] - 1][1];
+
+    letter = letters[letterIdx[ii] - 1];       // MATLAB 1-based → JS 0-based
+    color  = icolors[colorIdx[ii] - 1];        // same index adjustment
+
+    ctx.fillStyle = color;
+    ctx.fillText(letter, cx, cy);
+  }
+
+  // Reset font to Arial
+  ctx.font = "20px Arial";
+  ctx.fillStyle = "white";
+  
+  ctx.fillText("Click on the button bellow if you have remembered this figure", pageXcen, gridLoc[0][1]-40);
+
+  if (pracFinished==0) {
+      ctx.fillText("(press only if you have a vivid figure in your mind)", pageXcen, gridLoc[3][1]+100);
+  }
+
+
+
+  if ((mousePosX < pageXcen-30+60) && (mousePosX > pageXcen-30) && (mousePosY > gridLoc[3][1]+40-30) && (mousePosY < gridLoc[3][1]+40+30)){nextState = 1;} else {nextState = 0;}
+  drawButton('Next',nextState,pageXcen-30,gridLoc[3][1]+40,60,30,4,6);
+
+  drawMouse();
+
+
+  if (nextState && mouseButton == 0){
+    encodingResp = 1; 
+    encodingTime = Date.now() - trialStart;
+    mouseButton = -1;
+    frame = 0;
+    }
+
+  mouseButton = -1;
+}
+
+// search and update instruction
+function phaseUpdateInstruction(istart, displayInfo) {
+    reset();
+    if (frame == 0) {
+      commandType =  displayInfo[trialNum - 1][1][1]; 
+      movementType = displayInfo[trialNum - 1][1][2]; 
+      movementDir =  displayInfo[trialNum - 1][1][3]; 
+      frame = 1;
+    }
+    movement = "";
+    if (movementType == 3 && movementDir < 0) {
+      movement = "LEFT";
+    } else if (movementType == 3 && movementDir > 0) {
+      movement = "RIGHT";
+    } else if (movementType == 4 && movementDir < 0) {
+      movement = "UP";
+    } else if (movementType == 4 && movementDir > 0) {
+      movement = "DOWN";
+    }
+
+    relevantFeature = displayInfo[trialNum - 1][1][1];
+
+    if (relevantFeature == 1) { // update leter
+        relevantValue = letterIdx[displayInfo[trialNum - 1][1][4]-1];
+        feature = letters[relevantValue-1];
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "white";
+        ctx.fillText("MOVE", pageXcen,gridLoc[0][1]);
+        ctx.fillText(feature, pageXcen,gridLoc[1][1]);
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "white";
+        ctx.fillText(movement, pageXcen,gridLoc[2][1]);
+
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "white";
+        ctx.fillText("1 GRID", pageXcen,gridLoc[3][1]);
+
+    }
+
+    if (relevantFeature == 2) { // update color
+        relevantValue = colorIdx[displayInfo[trialNum - 1][1][4]-1];
+        feature = icolors[relevantValue-1];
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "white";
+        ctx.fillText("MOVE", pageXcen,gridLoc[0][1]);
+        circle(pageXcen,gridLoc[1][1],fixSize/2,feature);
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "white";
+        ctx.fillText(movement, pageXcen,gridLoc[2][1]);
+
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "white";
+        ctx.fillText("1 GRID", pageXcen,gridLoc[3][1]);
+
+    }
+      
+    if (pracFinished==0) {
+          ctx.fillText("(all items matter for response, not only the item needed to be updated)", pageXcen, gridLoc[3][1]+100);
+          ctx.fillText("(so, press only if you have a vivid updated figure with all items in your mind)", pageXcen, gridLoc[3][1]+120);
+    }
+
+  if ((mousePosX < pageXcen-30+60) && (mousePosX > pageXcen-30) && (mousePosY > gridLoc[3][1]+40-30) && (mousePosY < gridLoc[3][1]+40+30)){nextState = 1;} else {nextState = 0;}
+  drawButton('Finish',nextState,pageXcen-30,gridLoc[3][1]+40,60,30,4,6);
+  drawMouse();
+  if (nextState && mouseButton == 0){
+    updatingResp = 1; 
+    updatingTime = Date.now() - trialStart;
+    updatingTime = updatingTime - encodingTime - durInter;
+    mouseButton = -1;
+    frame = 0;
+    }
+
+  mouseButton = -1;
+
+
+}
+
+// probe
+function phaseProbe(istart, displayInfo) { 
+  reset();
+  if (frame == 0) {
+
+    swapORmove = 0;
+    changeTrial = displayInfo[trialNum-1][1][5]; // change or not
+    if (changeTrial == 1) {
+        badEgg = 1;
+        while (badEgg == 1) {
+            testItem = randi(setSize);
+            if (testItem == displayInfo[trialNum - 1][1][4]) { // the probed item is the moved item
+                displayIdx = 1;
+                xx = displayInfo[trialNum-1][displayIdx-1][0].map(row => row[2]);
+                yy = displayInfo[trialNum-1][displayIdx-1][0].map(row => row[3]);
+                badEgg = 0;
+            }
+
+            if (testItem != displayInfo[trialNum - 1][1][4]) { // the probed item is not the moved item
+                displayIdx = 2;
+                xx = displayInfo[trialNum-1][displayIdx-1][0].map(row => row[2]);
+                yy = displayInfo[trialNum-1][displayIdx-1][0].map(row => row[3]);
+
+                swapORmove = randi(2);
+
+                if (swapORmove == 2) { // move the distractor
+                    newXX = xx;
+                    newYY = yy;
+                    movementType = randi(2); 
+                    movementDir = (randi(2) - 1.5 > 0 ? 1 : -1);
+                    if (movementType == 1) {
+                        newXX[testItem-1] = newXX[testItem-1]+movementDir; 
+                    }
+                    if (movementType == 2) {
+                        newYY[testItem-1] = newYY[testItem-1]+movementDir; 
+                    }
+
+                    outOfBoundsUpper = false;
+                    outOfBoundsLower = false;
+
+                    // Check if any coordinates exceed gridSize (upper bound)
+                    for (i = 0; i < newXX.length; i++) {
+                        if (newXX[i] > gridSize || newYY[i] > gridSize) {
+                            outOfBoundsUpper = true;
+                            break;
+                        }
+                    }
+
+                    // Check if any coordinates are less than 1 (lower bound)
+                    for (i = 0; i < newXX.length; i++) {
+                        if (newXX[i] < 1 || newYY[i] < 1) {
+                            outOfBoundsLower = true;
+                            break;
+                        }
+                    }
+
+                    // Check if all coordinate pairs are unique
+                    const coordinateSet = new Set();
+                    for (i = 0; i < newXX.length; i++) {
+                        coordinateSet.add(`${newXX[i]},${newYY[i]}`);
+                    }
+
+                    if (outOfBoundsUpper) {
+                        badEgg = 1;
+                    } else if (outOfBoundsLower) {
+                        badEgg = 1;
+                    } else if (coordinateSet.size !== setSize) {
+                        badEgg = 1;
+                    } else {
+                        badEgg = 0;
+                        xx = newXX;
+                        yy = newYY;
+                    }
+
+                }
+
+                if (swapORmove == 1) {
+                    newXX = xx;
+                    newYY = yy;
+
+                    swapItems = [];
+                    for (i = 0; i < setSize; i++) {
+                        if (displayInfo[trialNum-1][1][0][i][commandType-1] !== displayInfo[trialNum - 1][1][4]) {
+                            swapItems.push(i);
+                        }
+                    }
+                    swapItems = swapItems.slice(0, 2);
+                    a = xx[swapItems[0]]; b = xx[swapItems[1]];
+                    newXX[swapItems[0]] = b;
+                    newXX[swapItems[1]] = a;
+
+                    a = yy[swapItems[0]]; b = yy[swapItems[1]];
+                    newYY[swapItems[0]] = b;
+                    newYY[swapItems[1]] = a;
+
+                    xx = newXX;
+                    yy = newYY;
+                    badEgg = 0;
+                }
+
+            }
+        }
+    }
+
+    if (changeTrial == 0) {
+        displayIdx = 2;
+        xx = displayInfo[trialNum-1][displayIdx-1][0].map(row => row[2]);
+        yy = displayInfo[trialNum-1][displayIdx-1][0].map(row => row[3]);
+    }
+
+    
+    letterIdx = displayInfo[trialNum - 1][0][0].map(row => row[0]); 
+    colorIdx  = displayInfo[trialNum - 1][0][0].map(row => row[1]); 
+    iclorStart = istart[trialNum - 1];
+    frame = 1;
+  }
+
+  for (ii = 1; ii <= gridSize ** 2; ii++) {
+    // Row & column calculation
+    row = Math.ceil(ii / gridSize);
+    col = ((ii - 1) % gridSize) + 1;
+
+    // Center coordinates
+    cx = gridLoc[row - 1][0]; 
+    cy = gridLoc[col - 1][1];
+
+
+    // Outer rectangle (grid cell with border)
+    x1Outer = cx - gridCellSize / 2 - gridBarWidth;
+    y1Outer = cy - gridCellSize / 2 - gridBarWidth;
+    x2Outer = cx + gridCellSize / 2 + gridBarWidth;
+    y2Outer = cy + gridCellSize / 2 + gridBarWidth;
+
+    ctx.fillStyle = "white";
+    ctx.fillRect(x1Outer, y1Outer, x2Outer - x1Outer, y2Outer - y1Outer);
+
+    // Inner rectangle (background inside cell)
+    x1Inner = cx - gridCellSize / 2;
+    y1Inner = cy - gridCellSize / 2;
+    x2Inner = cx + gridCellSize / 2;
+    y2Inner = cy + gridCellSize / 2;
+
+    ctx.fillStyle = "black";
+    ctx.fillRect(x1Inner, y1Inner, x2Inner - x1Inner, y2Inner - y1Inner);
+
+  }
+
+  // Equivalent to istart:90:istart+270 (since 360/4 = 90)
+  icolorIdx = [];
+  for (k = 0; k < setSize; k++) {
+    icolorIdx.push((iclorStart + k * (360 / 4)) % 360 || 1);
+  }
+
+  // Pick rows from fullcolormatrix (assuming fullcolormatrix is an array of [r,g,b])
+  icolors = icolorIdx.map(idx => fullcolormatrixHex[idx]);
+
+  // Set font
+  ctx.font = "20px Impact";  // Adjust font size as needed
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  for (ii = 0; ii < setSize; ii++) {
+    cx = gridLoc[xx[ii] - 1][0];
+    cy = gridLoc[yy[ii] - 1][1];
+
+    letter = letters[letterIdx[ii] - 1];       // MATLAB 1-based → JS 0-based
+    color  = icolors[colorIdx[ii] - 1];        // same index adjustment
+
+    ctx.fillStyle = color;
+    ctx.fillText(letter, cx, cy);
+  }
+
+  ctx.font = "20px Arial";
+  ctx.fillStyle = "white";
+  
+  ctx.fillText("Same to updated figure?", pageXcen, gridLoc[0][1]-40);
+
+
+}
+
+// response
+function phaseResp(istart, displayInfo) { 
+  reset();
+
+  for (ii = 1; ii <= gridSize ** 2; ii++) {
+    // Row & column calculation
+    row = Math.ceil(ii / gridSize);
+    col = ((ii - 1) % gridSize) + 1;
+
+    // Center coordinates
+    cx = gridLoc[row - 1][0]; 
+    cy = gridLoc[col - 1][1];
+
+
+    // Outer rectangle (grid cell with border)
+    x1Outer = cx - gridCellSize / 2 - gridBarWidth;
+    y1Outer = cy - gridCellSize / 2 - gridBarWidth;
+    x2Outer = cx + gridCellSize / 2 + gridBarWidth;
+    y2Outer = cy + gridCellSize / 2 + gridBarWidth;
+
+    ctx.fillStyle = "white";
+    ctx.fillRect(x1Outer, y1Outer, x2Outer - x1Outer, y2Outer - y1Outer);
+
+    // Inner rectangle (background inside cell)
+    x1Inner = cx - gridCellSize / 2;
+    y1Inner = cy - gridCellSize / 2;
+    x2Inner = cx + gridCellSize / 2;
+    y2Inner = cy + gridCellSize / 2;
+
+    ctx.fillStyle = "black";
+    ctx.fillRect(x1Inner, y1Inner, x2Inner - x1Inner, y2Inner - y1Inner);
+
+  }
+
+  // Reset font to Arial
+  ctx.font = "20px Arial";
+  ctx.fillStyle = "white";
+  ctx.fillText("Same to the updated figure?", pageXcen, gridLoc[0][1]-40);
+
+
+  if (pracFinished==0) {
+      ctx.fillText("(Respond as fast as possible)", pageXcen, gridLoc[3][1]+100);
+  }
+
+
+  if ((mousePosX < pageXcen-80+60) && (mousePosX > pageXcen-80) && (mousePosY > gridLoc[3][1]+40-30) && (mousePosY < gridLoc[3][1]+40+30)) {
+    nextStateSame = 1; changeAnswer = 0; 
+  } else if ((mousePosX < pageXcen+20+60) && (mousePosX > pageXcen+20) && (mousePosY > gridLoc[3][1]+40-30) && (mousePosY < gridLoc[3][1]+40+30)) {
+    nextStateDiff = 1; changeAnswer = 1; 
+  } else {
+    nextStateSame = 0; nextStateDiff = 0; 
+  }
+  drawButton('Same',nextStateSame,pageXcen-80,gridLoc[3][1]+40,60,30,4,6);
+  drawButton('Different',nextStateDiff,pageXcen+20,gridLoc[3][1]+40,60,30,4,6);
+
+  drawMouse();
+
+  if (nextState && mouseButton == 0){
+    Resp = 1; 
+    if (changeTrial==changeAnswer) {
+        acc = 1; 
+    if (pracFinished==0) {numACC_practice = numACC_practice+1;} else {numACC = numACC+1;}
+    } else {acc = 0;}
+    responseTime = Date.now() - trialStart;
+    responseTime = responseTime - encodingTime - durInter - updatingTime - durProbe;
+    mouseButton = -1;
+    frame = 0;
+    OutOfTime = 0;
+    }
+  mouseButton = -1;
+}
+
+// response
+function phaseRespOutTime(istart, displayInfo) { 
+  reset();
+  for (ii = 1; ii <= gridSize ** 2; ii++) {
+    // Row & column calculation
+    row = Math.ceil(ii / gridSize);
+    col = ((ii - 1) % gridSize) + 1;
+
+    // Center coordinates
+    cx = gridLoc[row - 1][0]; 
+    cy = gridLoc[col - 1][1];
+
+
+    // Outer rectangle (grid cell with border)
+    x1Outer = cx - gridCellSize / 2 - gridBarWidth;
+    y1Outer = cy - gridCellSize / 2 - gridBarWidth;
+    x2Outer = cx + gridCellSize / 2 + gridBarWidth;
+    y2Outer = cy + gridCellSize / 2 + gridBarWidth;
+
+    ctx.fillStyle = "white";
+    ctx.fillRect(x1Outer, y1Outer, x2Outer - x1Outer, y2Outer - y1Outer);
+
+    // Inner rectangle (background inside cell)
+    x1Inner = cx - gridCellSize / 2;
+    y1Inner = cy - gridCellSize / 2;
+    x2Inner = cx + gridCellSize / 2;
+    y2Inner = cy + gridCellSize / 2;
+
+    ctx.fillStyle = "black";
+    ctx.fillRect(x1Inner, y1Inner, x2Inner - x1Inner, y2Inner - y1Inner);
+
+  }
+
+  // Reset font to Arial
+  ctx.font = "20px Arial";
+  ctx.fillStyle = "white";
+  ctx.fillText("Same to the updated figure?", pageXcen, gridLoc[0][1]-40);
+  ctx.font = "20px Arial";
+  ctx.fillStyle = "red";
+  ctx.fillText("Please respond in time", pageXcen, gridLoc[3][1]+40);
+
+  Resp = 1; 
+  responseTime = durRespOutTime;
+  frame = 0;
+  OutOfTime = 1;
+
+}
+
+
+// feedback
+function phaseFeedback() { 
+  reset();
+
+  // Reset font to Arial
+  if (acc==1) {
+      ctx.font = "20px Arial";
+      ctx.fillStyle = "green";
+      ctx.fillText("Correct", pageXcen, pageYcen);
+  } else {
+      ctx.font = "20px Arial";
+      ctx.fillStyle = "red";
+      ctx.fillText("Incorrect", pageXcen, pageYcen);
+  }
+
+  if (frame == 0) {
+    if (pracFinished == 1) {
+      dataString = dataString + "\n" + subjID + "," + gender + "," + age + "," + hand + "," + trialNum + "," + commandType + "," + encodingTime + "," + updatingTime + "," + changeTrial + "," + swapORmove + "," + changeAnswer  + "," + acc + "," + responseTime + "," + OutOfTime;   
+
+    }
+    frame = 1;
+  }
+
+}
+
+
+function writeStuffLocal() {
+  downloadCSV();
+  // const path = require('path');
+  // Assuming these variables are defined elsewhere
+  // const expt = 'experiment';
+  // const subjID = 'subject123';
+  // const randID = 'abc456';
+  // const data = 'your,csv,data';
+
+  // Create the file path
+  // const homeDir = process.env.HOME || process.env.USERPROFILE;
+  // const fileName = `${ExptName}_${subjID}_${randID}_data.csv`;
+  // const filePath = path.join(homeDir, 'Desktop', fileName);
+
+  // fs.writeFile(filePath, dataString, (err) => {
+  //     if (err) {
+  //         console.error('Error writing file:', err);
+  //         return;
+  //     }
+  //     console.log('File saved successfully:', filePath);
+  // });
+
+}
+
+function downloadCSV() {
+    const fileName = `${ExptName}_${subjID}_${randID}_data.csv`;
+    
+    // Create a Blob with the data
+    const blob = new Blob([dataString], { type: 'text/csv' });
+    
+    // Create a download link
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    
+    // Trigger the download
+    document.body.appendChild(a);
+    a.click();
+    
+    // Clean up
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}
+
+
+
+
+function writeStuff() {
+
+    post_to_url('http://ying.rf.gd/aphanWM/dataWrangler.php', {
+    subjID:subjID,
+    randID:randID,
+    data:dataString,
+    expt:ExptName
+    }, 'post');
+
+
+}
+
+
+function post_to_local(path, params, method) {
+    method = method || "post";
+
+    var form = document.createElement("form");
+    form.setAttribute("method", method);
+    form.setAttribute("action", path);
+
+    for(var key in params) {
+        if(params.hasOwnProperty(key)) {
+            var hiddenField = document.createElement("input");
+            hiddenField.setAttribute("type", "hidden");
+            hiddenField.setAttribute("name", key);
+            hiddenField.setAttribute("id", key);
+            hiddenField.setAttribute("value", params[key]);
+            form.appendChild(hiddenField);
+         }
+    }
+    document.body.appendChild(form);
+    form.submit();
+}
+
+
+function post_to_url(path, params, method) {
+    method = method || "post";
+
+    var form = document.createElement("form");
+    form.setAttribute("method", method);
+    form.setAttribute("action", path);
+
+    for(var key in params) {
+        if(params.hasOwnProperty(key)) {
+            var hiddenField = document.createElement("input");
+            hiddenField.setAttribute("type", "hidden");
+            hiddenField.setAttribute("name", key);
+            hiddenField.setAttribute("id", key);
+            hiddenField.setAttribute("value", params[key]);
+            form.appendChild(hiddenField);
+         }
+    }
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// helper functions
+function makeid(length) {
+   //https://stackoverflow.com/questions/1349404/generate-random-string-characters-in-javascript
+   var result           = '';
+   var characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+   var charactersLength = characters.length;
+   for ( var i = 0; i < length; i++ ) {
+      result += characters.charAt(Math.floor(Math.random() * charactersLength));
+   }
+   return result;
+}
+
+function circleOutline(x,y,r,w) {
+  ctx.beginPath();
+  ctx.strokeStyle = "white";  
+  ctx.arc(x, y, r, 0, Math.PI*2, true);
+  ctx.lineWidth = w;  
+  ctx.stroke();
+}
+
+function randperm(n) {
+    let arr = Array.from({ length: n }, (_, i) => i + 1);
+    for (let i = arr.length - 1; i > 0; i--) {
+        let j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+function randi(n) {
+    return Math.floor(Math.random() * n) + 1;
+}
+
+function GridUpdate_TrialCreation(setSize, gridSize, gridCoords, nTrials, nDisplays) {
+
+    // Feature values
+    featureValue = Array(nDisplays / 2).fill([1, 2]).flat();
+    featureValue = randperm(featureValue.length).map(i => featureValue[i - 1]);
+
+    changeIdx = Array(nDisplays / 2).fill([0, 1]).flat();
+    changeIdx = randperm(changeIdx.length).map(i => changeIdx[i - 1]);
+    fullDisplayInfo = [];
+
+    for (displays = 0; displays < nDisplays; displays++) {
+        badEgg = 1;
+        trialData = [];
+
+        while (badEgg > 0) {
+            trialData = Array.from({ length: nTrials + 1 }, () => Array(7).fill(null));
+
+            // First display
+            trialData[0][0] = Array(setSize).fill(0).map(() => Array(4).fill(0));
+
+            featOne = randperm(26);
+            featTwo = randperm(4);
+
+            for (let i = 0; i < setSize; i++) {
+                trialData[0][0][i][0] = featOne[i]; // feature1
+                trialData[0][0][i][1] = featTwo[i]; // feature2
+            }
+
+            coords = randperm(gridSize ** 2);
+            trialCoords = coords.slice(0, setSize);
+
+            for (i = 0; i < setSize; i++) {
+                idx = trialCoords[i] - 1;
+                xx = Math.floor(idx / gridSize) + 1;
+                yy = (idx % gridSize) + 1;
+                trialData[0][0][i][2] = xx;
+                trialData[0][0][i][3] = yy;
+            }
+
+            // Subsequent trials
+            for (ii = 1; ii < nTrials + 1; ii++) {
+                trialData[ii][0] = JSON.parse(JSON.stringify(trialData[ii - 1][0]));
+
+                chosenItems = randi(setSize) - 1;
+                movementType = randi(2) + 2; // (3 or 4 in MATLAB)
+                movementDir = (randi(2) - 1.5 > 0 ? 1 : -1);
+
+                trialData[ii][0][chosenItems][movementType-1] += movementDir; // movementType = 3, change x, movementType = 4, change y
+
+                // Check bad eggs
+                coordsSet = new Set();
+                badEgg = 0;
+
+                for (row of trialData[ii][0]) {
+                    x = row[2], y = row[3];
+                    if (x > gridSize || y > gridSize || x < 1 || y < 1) {
+                        badEgg++;
+                        break;
+                    }
+                    coordKey = `${x},${y}`;
+                    if (coordsSet.has(coordKey)) {
+                        badEgg++;
+                        break;
+                    }
+                    coordsSet.add(coordKey);
+                }
+
+                if (badEgg === 0) {
+                    trialData[ii][1] = featureValue[displays]; // selected feature
+                    trialData[ii][2] = movementType;
+                    trialData[ii][3] = movementDir;
+                    trialData[ii][4] = chosenItems + 1; // MATLAB 1-indexed
+                    trialData[ii][5] = changeIdx[displays];
+                }
+            }
+        }
+
+        fullDisplayInfo.push(trialData);
+    }
+
+    return fullDisplayInfo;
+}
+
+function init() {
+  canvas = document.getElementById("canvas");
+  ctx = canvas.getContext("2d");
+  ctx.canvas.width  = window.innerWidth - 40; // remove scrolling capabilities
+  ctx.canvas.height = window.innerHeight - 40; // remove scrolling capabilities  
+  return setInterval(main, durPerFrame);
+}
+
+function reset() {
+  ctx.clearRect(0, 0, pageWidth, pageHeight);
+  ctx.fillStyle = "black";
+  rect(0,0,pageWidth,pageHeight);  
+}
+
+function rect(x,y,w,h) {
+  ctx.beginPath();
+  ctx.rect(x,y,w,h);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawButton(text,state,posx,posy,sx,sy,adjx,adjy) {
+   if (state == 0){ctx.fillStyle='#757575'}
+   if (state == 1){ctx.fillStyle='#ffffff'}   
+   ctx.fillRect(posx, posy, sx, sy);
+   ctx.fillStyle = "black";  ctx.font = "12px Arial";
+   ctx.fillText(text, posx+sx*(adjx/10), posy+sy*(adjy/10)); 
+}
+
+function drawMouse() {
+  ctx.beginPath();
+  ctx.fillStyle = "red";  
+  ctx.arc(mousePosX, mousePosY, 5, 0, Math.PI*2, true);
+  ctx.fill();
+}
+
+function drawAge(age,posx,posy) {
+   ctx.fillStyle='#757575'; ctx.fillRect(posx, posy, 300, 4);
+   ctx.fillStyle='#ffffff'; ctx.fillRect(ageXPos, posy-4, 4, 12);
+   if ((mousePosX < posx+300) && (mousePosX > posx) && (mousePosY > posy-8) && (mousePosY < posy+8) && mouseButton == 0){ageXPos = mousePosX; age = Math.floor(18+(ageXPos-posx)*43/300); mouseButton = -1;}
+   return(age);
+}
+
+function circle(x,y,r,c) {
+  ctx.beginPath();
+  ctx.fillStyle = c;  
+  ctx.arc(x, y, r, 0, Math.PI*2, true);
+  ctx.fill();
+}
+
+function calcDist() {
+   mouseDist = ((mousePosY - pageYcen)**2 + (mousePosX - pageXcen)**2) ** 0.5 ; 
+   return(mouseDist);
+}
+
+function genMemColHex(x) {
+  y = new Array(360);
+  for (i = 0; i < 360; i += 1) { 
+      y[i] = rgb2hex(x[i][0],x[i][1],x[i][2])
+  }
+  return(y);
+}
+
+function rgb2hex(r,g,b) {
+  red = rgbToHex(Math.round(r));
+  green = rgbToHex(Math.round(g));
+  blue = rgbToHex(Math.round(b));
+  return '#'+red+green+blue;
+}  
+
+function rgbToHex(rgb) {
+  hex = Number(rgb).toString(16);
+  if (hex.length < 2) {
+       hex = "0" + hex;
+  }
+  return hex;
+}  
+
+function genMemColRGB() {
+  return([
+    [246, 37, 111],
+    [246, 37, 110],
+    [246, 37, 109],
+    [246, 37, 107.5],
+    [246, 37, 106],
+    [246, 37, 104.5],
+    [246, 37, 103],
+    [246, 37.5, 102],
+    [246, 38, 101],
+    [246, 38.5, 99.5],
+    [246, 39, 98],
+    [246, 39.5, 96.5],
+    [246, 40, 95],
+    [246, 41, 94],
+    [246, 42, 93],
+    [245.5, 42.5, 91.5],
+    [245, 43, 90],
+    [245, 44, 89],
+    [245, 45, 88],
+    [245, 46, 86.5],
+    [245, 47, 85],
+    [244.5, 47.5, 84],
+    [244, 48, 83],
+    [243.5, 49, 81.5],
+    [243, 50, 80],
+    [242.5, 51, 79],
+    [242, 52, 78],
+    [242, 53, 76.5],
+    [242, 54, 75],
+    [241.5, 55.5, 74],
+    [241, 57, 73],
+    [240.5, 58, 71.5],
+    [240, 59, 70],
+    [239, 60, 69],
+    [238, 61, 68],
+    [237.5, 62, 66.5],
+    [237, 63, 65],
+    [236.5, 64, 64],
+    [236, 65, 63],
+    [235.5, 66, 62],
+    [235, 67, 61],
+    [234, 68.5, 60],
+    [233, 70, 59],
+    [232.5, 71, 57.5],
+    [232, 72, 56],
+    [231, 73, 55],
+    [230, 74, 54],
+    [229, 75, 53],
+    [228, 76, 52],
+    [227.5, 77, 51],
+    [227, 78, 50],
+    [226, 79, 49],
+    [225, 80, 48],
+    [224, 81, 46.5],
+    [223, 82, 45],
+    [222, 83, 44],
+    [221, 84, 43],
+    [220, 85, 42],
+    [219, 86, 41],
+    [218, 87, 40],
+    [217, 88, 39],
+    [216, 89, 38],
+    [215, 90, 37],
+    [214, 91, 36.5],
+    [213, 92, 36],
+    [212, 93, 35],
+    [211, 94, 34],
+    [210, 95, 33],
+    [209, 96, 32],
+    [208, 97, 31],
+    [207, 98, 30],
+    [205.5, 98.5, 29.5],
+    [204, 99, 29],
+    [203, 100,  28],
+    [202, 101,  27],
+    [201, 102,  26.5],
+    [200, 103,  26],
+    [198.5, 103.5,  25],
+    [197, 104,  24],
+    [196, 105,  23.5],
+    [195, 106,  23],
+    [194, 107,  22.5],
+    [193, 108,  22],
+    [191.5, 108.5,  21.5],
+    [190, 109,  21],
+    [189, 110,  20.5],
+    [188, 111,  20],
+    [186.5, 111.5,  19.5],
+    [185, 112,  19],
+    [183.5, 113,  19],
+    [182, 114,  19],
+    [181, 114.5,  19],
+    [180, 115,  19],
+    [178.5, 115.5,  19],
+    [177, 116,  19],
+    [176, 117,  19],
+    [175, 118,  19],
+    [173.5, 118.5,  19],
+    [172, 119,  19],
+    [170.5, 119.5,  19.5],
+    [169, 120,  20],
+    [168, 120.5,  20.5],
+    [167, 121,  21],
+    [165.5, 121.5,  21.5],
+    [164, 122,  22],
+    [162.5, 123,  22.5],
+    [161, 124,  23],
+    [160, 124.5,  24],
+    [159, 125,  25],
+    [157.5, 125.5,  25.5],
+    [156, 126,  26],
+    [154.5, 126.5,  27],
+    [153, 127,  28],
+    [152, 127.5,  28.5],
+    [151, 128,  29],
+    [149.5, 128.5,  30],
+    [148, 129,  31],
+    [146.5, 129,  32],
+    [145, 129,  33],
+    [144, 129.5,  34],
+    [143, 130,  35],
+    [141.5, 130.5,  36],
+    [140, 131,  37],
+    [138.5, 131.5,  38],
+    [137, 132,  39],
+    [135.5, 132.5,  40],
+    [134, 133,  41],
+    [133, 133.5,  42.5],
+    [132, 134,  44],
+    [130.5, 134,  45],
+    [129, 134,  46],
+    [127.5, 134.5,  47],
+    [126, 135,  48],
+    [125, 135.5,  49],
+    [124, 136,  50],
+    [122.5, 136,  51.5],
+    [121, 136,  53],
+    [119.5, 136.5,  54],
+    [118, 137,  55],
+    [117, 137,  56.5],
+    [116, 137,  58],
+    [114.5, 137.5,  59],
+    [113, 138,  60],
+    [111.5, 138,  61.5],
+    [110, 138,  63],
+    [109, 138.5,  64],
+    [108, 139,  65],
+    [106.5, 139,  66.5],
+    [105, 139,  68],
+    [103.5, 139.5,  69.5],
+    [102, 140,  71],
+    [101, 140,  72],
+    [100, 140,  73],
+    [98.5,  140.5,  74.5],
+    [97,  141,  76],
+    [95.5,  141,  77.5],
+    [94,  141,  79],
+    [93,  141,  80],
+    [92,  141,  81],
+    [90.5,  141.5,  82.5],
+    [89,  142,  84],
+    [88,  142,  85.5],
+    [87,  142,  87],
+    [85.5,  142,  88.5],
+    [84,  142,  90],
+    [82.5,  142,  91],
+    [81,  142,  92],
+    [80,  142,  93.5],
+    [79,  142,  95],
+    [77.5,  142.5,  96.5],
+    [76,  143,  98],
+    [75,  143,  99.5],
+    [74,  143,  101],
+    [72.5,  143,  102.5],
+    [71,  143,  104],
+    [70,  143,  105],
+    [69,  143,  106],
+    [67.5,  143,  107.5],
+    [66,  143,  109],
+    [65,  143,  110.5],
+    [64,  143,  112],
+    [63,  143,  113.5],
+    [62,  143,  115],
+    [61,  143,  116],
+    [60,  143,  117],
+    [58.5,  143,  118.5],
+    [57,  143,  120],
+    [56,  143,  121.5],
+    [55,  143,  123],
+    [54,  143,  124.5],
+    [53,  143,  126],
+    [52.5,  143,  127],
+    [52,  143,  128],
+    [51,  143,  129.5],
+    [50,  143,  131],
+    [49.5,  143,  132.5],
+    [49,  143,  134],
+    [48,  143,  135],
+    [47,  143,  136],
+    [46.5,  143,  137.5],
+    [46,  143,  139],
+    [46,  142.5,  140],
+    [46,  142,  141],
+    [45.5,  142,  142.5],
+    [45,  142,  144],
+    [45,  142,  145],
+    [45,  142,  146],
+    [45,  142,  147.5],
+    [45,  142,  149],
+    [45.5,  141.5,  150],
+    [46,  141,  151],
+    [46.5,  141,  152.5],
+    [47,  141,  154],
+    [47.5,  141,  155],
+    [48,  141,  156],
+    [49,  140.5,  157],
+    [50,  140,  158],
+    [50.5,  140,  159],
+    [51,  140,  160],
+    [52,  139.5,  161],
+    [53,  139,  162],
+    [54.5,  139,  163.5],
+    [56,  139,  165],
+    [57,  138.5,  165.5],
+    [58,  138,  166],
+    [59.5,  138,  167],
+    [61,  138,  168],
+    [62.5,  137.5,  169],
+    [64,  137,  170],
+    [65.5,  137,  171],
+    [67,  137,  172],
+    [68.5,  136.5,  173],
+    [70,  136,  174],
+    [71.5,  135.5,  174.5],
+    [73,  135,  175],
+    [75,  135,  176],
+    [77,  135,  177],
+    [78.5,  134.5,  177.5],
+    [80,  134,  178],
+    [82,  133.5,  179],
+    [84,  133,  180],
+    [85.5,  132.5,  180.5],
+    [87,  132,  181],
+    [89,  132,  181.5],
+    [91,  132,  182],
+    [92.5,  131.5,  182.5],
+    [94,  131,  183],
+    [96,  130.5,  183.5],
+    [98,  130,  184],
+    [100, 129.5,  184.5],
+    [102, 129,  185],
+    [104, 128.5,  185.5],
+    [106, 128,  186],
+    [107.5, 127.5,  186.5],
+    [109, 127,  187],
+    [111, 126.5,  187.5],
+    [113, 126,  188],
+    [115, 125.5,  188],
+    [117, 125,  188],
+    [119, 124,  188.5],
+    [121, 123,  189],
+    [123, 122.5,  189],
+    [125, 122,  189],
+    [127, 121.5,  189],
+    [129, 121,  189],
+    [130.5, 120.5,  189.5],
+    [132, 120,  190],
+    [134, 119,  190],
+    [136, 118,  190],
+    [138, 117.5,  190],
+    [140, 117,  190],
+    [142, 116.5,  190],
+    [144, 116,  190],
+    [145.5, 115,  189.5],
+    [147, 114,  189],
+    [149, 113.5,  189],
+    [151, 113,  189],
+    [153, 112,  189],
+    [155, 111,  189],
+    [156.5, 110,  188.5],
+    [158, 109,  188],
+    [160, 108.5,  188],
+    [162, 108,  188],
+    [163.5, 107,  187.5],
+    [165, 106,  187],
+    [167, 105.5,  186.5],
+    [169, 105,  186],
+    [170.5, 104,  185.5],
+    [172, 103,  185],
+    [174, 102,  184.5],
+    [176, 101,  184],
+    [177.5, 100,  183.5],
+    [179, 99, 183],
+    [180.5, 98, 182.5],
+    [182, 97, 182],
+    [184, 96, 181.5],
+    [186, 95, 181],
+    [187.5, 94, 180.5],
+    [189, 93, 180],
+    [190.5, 92, 179],
+    [192, 91, 178],
+    [193.5, 90, 177.5],
+    [195, 89, 177],
+    [196.5, 88, 176],
+    [198, 87, 175],
+    [199.5, 86, 174.5],
+    [201, 85, 174],
+    [202.5, 84, 173],
+    [204, 83, 172],
+    [205, 82, 171],
+    [206, 81, 170],
+    [207.5, 80, 169],
+    [209, 79, 168],
+    [210, 78, 167.5],
+    [211, 77, 167],
+    [212.5, 76, 166],
+    [214, 75, 165],
+    [215, 73.5, 164],
+    [216, 72, 163],
+    [217.5, 71, 162],
+    [219, 70, 161],
+    [220, 69, 159.5],
+    [221, 68, 158],
+    [222, 67, 157],
+    [223, 66, 156],
+    [224, 64.5, 155],
+    [225, 63, 154],
+    [226, 62, 153],
+    [227, 61, 152],
+    [228, 60, 150.5],
+    [229, 59, 149],
+    [230, 58, 148],
+    [231, 57, 147],
+    [232, 56, 146],
+    [233, 55, 145],
+    [233.5, 54, 143.5],
+    [234, 53, 142],
+    [235, 51.5, 141],
+    [236, 50, 140],
+    [236.5, 49, 138.5],
+    [237, 48, 137],
+    [237.5, 47.5, 136],
+    [238, 47, 135],
+    [239, 46, 133.5],
+    [240, 45, 132],
+    [240.5, 44, 131],
+    [241, 43, 130],
+    [241.5, 42.5, 128.5],
+    [242, 42, 127],
+    [242.5, 41, 125.5],
+    [243, 40, 124],
+    [243, 39.5, 123],
+    [243, 39, 122],
+    [243.5, 38.5, 120.5],
+    [244, 38, 119],
+    [244.5, 37.5, 118],
+    [245, 37, 117],
+    [245, 37, 115.5],
+    [245, 37, 114],
+    [245.5, 37, 112.5]
+  ]);
+}
+
+</script>
+</body>
+</html>
