@@ -235,7 +235,7 @@ function runDemographics() {
 // show instruction
 function instruction() {
   reset();
-  ctx.drawImage(instructionImg,0,0,pageHeight*0.8*7.82/7.5,pageHeight*0.8);
+  ctx.drawImage(instructionImg,0,0,pageHeight*0.8*7.2/7.5,pageHeight*0.8);
   if ((mousePosX < 100+50) && (mousePosX > 100-50) && (mousePosY > pageHeight*0.84-30) && (mousePosY < pageHeight*0.84+30)){nextState = 1;} else {nextState = 0;}
   drawButton('Next',nextState,100,pageHeight*0.84,50,30,2,6);
   drawMouse();
